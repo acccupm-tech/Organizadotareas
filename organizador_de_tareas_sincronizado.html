@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizador de Tareas Sync</title>
+    <!-- Tailwind CSS para los estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons para iconos modernos -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Animación suave para la entrada de tareas */
+        .task-enter { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Ocultar barra de desplazamiento pero permitir scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex justify-between items-center shadow-sm shrink-0 z-10">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 text-white p-1.5 rounded-lg">
+                <i class="ph ph-check-square-offset text-xl"></i>
+            </div>
+            <h1 class="font-bold text-lg tracking-tight">TaskSync</h1>
+        </div>
+        <button id="btn-sync" class="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition-colors">
+            <i class="ph ph-qr-code text-lg"></i>
+            <span class="hidden sm:inline">Vincular Móvil</span>
+        </button>
+    </header>
+
+    <!-- Modal de Sincronización -->
+    <div id="sync-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden justify-center items-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center transform scale-95 transition-transform duration-200">
+            <h2 class="text-xl font-bold mb-2">Sincroniza tus dispositivos</h2>
+            <p class="text-sm text-slate-500 mb-6">Escanea este QR con la cámara de tu móvil para ver y editar tus tareas desde allí.</p>
+            
+            <div class="bg-slate-100 p-4 rounded-xl flex justify-center mb-6">
+                <img id="qr-code" src="" alt="Código QR de Sincronización" class="w-48 h-48 rounded-lg shadow-sm">
+            </div>
+            
+            <div class="flex gap-2">
+                <button id="btn-copy-link" class="flex-1 bg-blue-50 text-blue-600 font-semibold py-2.5 rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2">
+                    <i class="ph ph-link text-lg"></i> Copiar Link
+                </button>
+                <button id="btn-close-modal" class="flex-1 bg-slate-800 text-white font-semibold py-2.5 rounded-xl hover:bg-slate-700 transition-colors">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor Principal (Scrollable) -->
+    <main class="flex-1 overflow-y-auto no-scrollbar relative w-full max-w-2xl mx-auto flex flex-col">
+        
+        <!-- Formulario para añadir tarea -->
+        <div class="p-4 shrink-0">
+            <form id="task-form" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
+                <input type="text" id="task-name" required placeholder="¿Qué necesitas hacer?" 
+                       class="w-full text-lg font-medium placeholder-slate-400 bg-transparent border-none focus:ring-0 p-0">
+                
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <!-- Categoría -->
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Categoría</label>
+                        <select id="task-category" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                            <option value="Universidad">📚 Universidad</option>
+                            <option value="Gimnasio">🏋️ Gimnasio</option>
+                            <option value="Batch Cooking">🍳 Batch Cooking</option>
+                            <option value="Fútbol">⚽ Fútbol</option>
+                            <option value="Coche">🚗 Coche</option>
+                            <option value="Trabajo">💼 Trabajo</option>
+                            <option value="Personal" selected>👤 Personal</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Tiempo -->
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Tiempo est.</label>
+                        <input type="text" id="task-time" placeholder="Ej. 30m, 2h" 
+                               class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                    </div>
+                    
+                    <!-- Fecha Límite -->
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Fecha límite</label>
+                        <input type="date" id="task-date" 
+                               class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end pt-2 border-t border-slate-100">
+                    <button type="submit" id="btn-submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl text-sm px-5 py-2.5 flex items-center gap-2 transition-colors disabled:opacity-50">
+                        <i class="ph ph-plus-circle text-lg"></i>
+                        Añadir Tarea
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Lista de Tareas -->
+        <div class="px-4 pb-20 flex-1">
+            <!-- Estado de Carga -->
+            <div id="loading-state" class="flex flex-col items-center justify-center py-10 text-slate-400">
+                <i class="ph ph-spinner-gap animate-spin text-3xl mb-2"></i>
+                <p class="text-sm">Sincronizando tareas...</p>
+            </div>
+            
+            <!-- Estado Vacío -->
+            <div id="empty-state" class="hidden flex-col items-center justify-center py-12 text-slate-400">
+                <i class="ph ph-list-dashes text-5xl mb-3 text-slate-300"></i>
+                <p class="text-sm font-medium">No hay tareas pendientes.</p>
+                <p class="text-xs mt-1">Añade una arriba para empezar.</p>
+            </div>
+
+            <!-- Contenedor dinámico de tareas -->
+            <div id="tasks-container" class="space-y-3 hidden">
+                <!-- Las tareas se inyectarán aquí vía JS -->
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuración del entorno (inyección de variables globales si existen)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'task-sync-app-v1';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            // Un fallback simulado si se usa fuera del entorno de preview, aunque fallará sin credenciales reales.
+            // Para el entorno inmersivo de la IA, esto se inyecta automáticamente.
+            projectId: "demo-project"
+        };
+
+        let app, db, auth;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+            console.error("Error inicializando Firebase:", e);
+        }
+
+        // 1. Obtener o crear ID de espacio de trabajo
+        const urlParams = new URLSearchParams(window.location.search);
+        let workspaceId = urlParams.get('ws');
+
+        if (!workspaceId) {
+            // Si no hay workspace en URL, buscar en localStorage
+            workspaceId = localStorage.getItem('taskSync_workspace');
+            if (!workspaceId) {
+                // Si tampoco hay, crear uno nuevo (UUID v4 simple)
+                workspaceId = crypto.randomUUID ? crypto.randomUUID() : 'ws_' + Math.random().toString(36).substr(2, 9);
+            }
+            // Actualizar URL sin recargar para que sea fácil de copiar
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?ws=' + workspaceId;
+            window.history.pushState({ path: newUrl }, '', newUrl);
+        }
+        
+        // Guardar el workspace actual en localStorage
+        localStorage.setItem('taskSync_workspace', workspaceId);
+
+        // Generar URL completa para compartir/QR
+        const syncUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?ws=' + workspaceId;
+
+        // Referencia a la colección en Firestore compartida para este workspace
+        let tasksCollection;
+
+        // Autenticación obligatoria antes de consultar la BD
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                // Si la autenticación tiene éxito, configuramos la colección (Usando public/data según las reglas)
+                tasksCollection = collection(db, 'artifacts', appId, 'public', 'data', `tasks_${workspaceId}`);
+                loadTasks();
+            } catch (error) {
+                console.error("Error de autenticación:", error);
+                document.getElementById('loading-state').innerHTML = `<p class="text-red-500 text-sm"><i class="ph ph-warning"></i> Error de conexión.</p>`;
+            }
+        }
+
+        // Colores de categorías
+        const categoryColors = {
+            'Universidad': 'bg-blue-100 text-blue-700 border-blue-200',
+            'Gimnasio': 'bg-orange-100 text-orange-700 border-orange-200',
+            'Batch Cooking': 'bg-green-100 text-green-700 border-green-200',
+            'Fútbol': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+            'Coche': 'bg-red-100 text-red-700 border-red-200',
+            'Trabajo': 'bg-purple-100 text-purple-700 border-purple-200',
+            'Personal': 'bg-slate-100 text-slate-700 border-slate-200',
+        };
+
+        // UI Elements
+        const form = document.getElementById('task-form');
+        const tasksContainer = document.getElementById('tasks-container');
+        const emptyState = document.getElementById('empty-state');
+        const loadingState = document.getElementById('loading-state');
+        const btnSubmit = document.getElementById('btn-submit');
+
+        let tasks = [];
+
+        function loadTasks() {
+            // Escuchar cambios en tiempo real
+            onSnapshot(tasksCollection, (snapshot) => {
+                tasks = [];
+                snapshot.forEach((doc) => {
+                    tasks.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Ordenar por fecha de creación (los más nuevos primero) en memoria según regla 2
+                tasks.sort((a, b) => b.createdAt - a.createdAt);
+                
+                renderTasks();
+            }, (error) => {
+                console.error("Error sincronizando tareas:", error);
+            });
+        }
+
+        // Formateador de fechas
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const options = { day: 'numeric', month: 'short' };
+            const date = new Date(dateString);
+            // Ajustar huso horario básico
+            const today = new Date();
+            if (date.toDateString() === today.toDateString()) return 'Hoy';
+            
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            if (date.toDateString() === tomorrow.toDateString()) return 'Mañana';
+            
+            return date.toLocaleDateString('es-ES', options);
+        }
+
+        function renderTasks() {
+            loadingState.classList.add('hidden');
+            
+            if (tasks.length === 0) {
+                emptyState.classList.replace('hidden', 'flex');
+                tasksContainer.classList.add('hidden');
+                return;
+            }
+
+            emptyState.classList.replace('flex', 'hidden');
+            tasksContainer.classList.remove('hidden');
+            tasksContainer.innerHTML = '';
+
+            tasks.forEach(task => {
+                const colors = categoryColors[task.category] || categoryColors['Personal'];
+                
+                const taskEl = document.createElement('div');
+                taskEl.className = `task-enter bg-white p-4 rounded-2xl shadow-sm border ${task.completed ? 'border-slate-200 opacity-60 bg-slate-50' : 'border-slate-200'} flex items-start gap-3 group transition-all`;
+                
+                taskEl.innerHTML = `
+                    <button class="toggle-btn mt-0.5 shrink-0 text-2xl ${task.completed ? 'text-green-500' : 'text-slate-300 hover:text-blue-500'} transition-colors" data-id="${task.id}">
+                        <i class="ph ${task.completed ? 'ph-check-circle-fill' : 'ph-circle'}"></i>
+                    </button>
+                    
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${colors}">
+                                ${task.category}
+                            </span>
+                            ${task.date ? `
+                                <span class="text-xs font-medium ${task.completed ? 'text-slate-400' : 'text-red-500'} flex items-center gap-1">
+                                    <i class="ph ph-calendar-blank"></i> ${formatDate(task.date)}
+                                </span>
+                            ` : ''}
+                        </div>
+                        
+                        <h3 class="text-base font-semibold ${task.completed ? 'text-slate-500 line-through' : 'text-slate-800'} truncate-multiline leading-tight mb-1.5">
+                            ${task.name}
+                        </h3>
+                        
+                        ${task.time ? `
+                            <div class="text-xs text-slate-500 flex items-center gap-1">
+                                <i class="ph ph-clock"></i> ${task.time}
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <button class="delete-btn shrink-0 text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-all md:opacity-100" data-id="${task.id}">
+                        <i class="ph ph-trash text-lg"></i>
+                    </button>
+                `;
+                
+                tasksContainer.appendChild(taskEl);
+            });
+
+            // Añadir listeners a los botones generados
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => toggleTask(btn.dataset.id));
+            });
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => deleteTask(btn.dataset.id));
+            });
+        }
+
+        // Añadir Tarea
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!auth.currentUser) return; // Regla 3 de Firebase
+            
+            const name = document.getElementById('task-name').value.trim();
+            const category = document.getElementById('task-category').value;
+            const time = document.getElementById('task-time').value.trim();
+            const date = document.getElementById('task-date').value;
+
+            if (!name) return;
+
+            // Deshabilitar botón temporalmente
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = `<i class="ph ph-spinner-gap animate-spin text-lg"></i> Guardando...`;
+
+            try {
+                await addDoc(tasksCollection, {
+                    name,
+                    category,
+                    time,
+                    date,
+                    completed: false,
+                    createdAt: Date.now()
+                });
+                
+                // Limpiar formulario y resetear foco
+                form.reset();
+                document.getElementById('task-category').value = 'Personal';
+                document.getElementById('task-name').focus();
+            } catch (error) {
+                console.error("Error añadiendo tarea: ", error);
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="ph ph-plus-circle text-lg"></i> Añadir Tarea`;
+            }
+        });
+
+        // Completar/Descompletar Tarea
+        async function toggleTask(id) {
+            if (!auth.currentUser) return;
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            const taskRef = doc(tasksCollection, id);
+            try {
+                await updateDoc(taskRef, {
+                    completed: !task.completed
+                });
+            } catch (error) {
+                console.error("Error actualizando tarea:", error);
+            }
+        }
+
+        // Borrar Tarea
+        async function deleteTask(id) {
+            if (!auth.currentUser) return;
+            const taskRef = doc(tasksCollection, id);
+            try {
+                await deleteDoc(taskRef);
+            } catch (error) {
+                console.error("Error borrando tarea:", error);
+            }
+        }
+
+        // Gestión del Modal y QR
+        const modal = document.getElementById('sync-modal');
+        const modalContent = modal.querySelector('div');
+        const btnSync = document.getElementById('btn-sync');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+        const btnCopyLink = document.getElementById('btn-copy-link');
+        const qrImage = document.getElementById('qr-code');
+
+        btnSync.addEventListener('click', () => {
+            // Generar QR apuntando a la URL actual
+            qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(syncUrl)}&margin=10`;
+            
+            modal.classList.replace('hidden', 'flex');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        });
+
+        function closeModal() {
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.replace('flex', 'hidden');
+            }, 200);
+        }
+
+        btnCloseModal.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        btnCopyLink.addEventListener('click', () => {
+            // Utilizando el método legacy soportado en iframes
+            const tempInput = document.createElement('input');
+            tempInput.value = syncUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            
+            try {
+                document.execCommand('copy');
+                const originalText = btnCopyLink.innerHTML;
+                btnCopyLink.innerHTML = `<i class="ph ph-check text-lg"></i> Copiado!`;
+                btnCopyLink.classList.replace('bg-blue-50', 'bg-green-50');
+                btnCopyLink.classList.replace('text-blue-600', 'text-green-600');
+                
+                setTimeout(() => {
+                    btnCopyLink.innerHTML = originalText;
+                    btnCopyLink.classList.replace('bg-green-50', 'bg-blue-50');
+                    btnCopyLink.classList.replace('text-green-600', 'text-blue-600');
+                }, 2000);
+            } catch (err) {
+                console.error('No se pudo copiar', err);
+            }
+            document.body.removeChild(tempInput);
+        });
+
+        // Set default date to today in form
+        document.getElementById('task-date').valueAsDate = new Date();
+
+        // Iniciar App
+        initAuth();
+
+    </script>
+</body>
+</html>
